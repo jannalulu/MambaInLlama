@@ -1,4 +1,5 @@
 import torch
+
 import transformers
 from transformers import AutoTokenizer
 
@@ -12,7 +13,7 @@ from lm_eval.models.huggingface import HFLM
 from transformers import StoppingCriteria, StoppingCriteriaList
 import torch
 
-# Custom implementation since stop_sequences_criteria is not available
+# Stop_sequences_criteria seems to be no longer available in lm-eval
 class StopSequenceCriteria(StoppingCriteria):
     def __init__(self, tokenizer, stop_sequences, input_len, batch_size):
         self.tokenizer = tokenizer
@@ -24,8 +25,7 @@ class StopSequenceCriteria(StoppingCriteria):
         self.batch_size = batch_size
     
     def __call__(self, input_ids, scores, **kwargs):
-        # Only look at the generated text after self.input_len tokens
-        # For each sequence in the batch
+        # Only look at the generated text after self.input_len tokens for each sequence in the batch
         for batch_idx in range(min(self.batch_size, input_ids.shape[0])):
             sequence = input_ids[batch_idx, self.input_len:]
             for stop_sequence in self.stop_sequences_ids:
