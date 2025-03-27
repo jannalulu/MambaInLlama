@@ -2,7 +2,7 @@
 
 To run evaluations of models in the [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/big-refactor) library:
 
-1. Clone the `lm-evaluation-harness` repository by running `git clone https://github.com/EleutherAI/lm-evaluation-harness.git`. Use the `big-refactor` branch by running `git checkout big-refactor`.
+1. Clone the `lm-evaluation-harness` repository by running `git clone https://github.com/EleutherAI/lm-evaluation-harness.git`. Make sure to install flash-attention and mamba-ssm with `pip install flash-attn mamba-ssm`. You must have access to the (gated) Llama HuggingFace repos as well.
 2. Follow the number of shots specified in `https://huggingface.co/spaces/open-llm-leaderboard/open_llm_leaderboard`. For example, for the teacher model HuggingFaceH4/zephyr-7b-beta, their configuration is [here](https://huggingface.co/HuggingFaceH4/zephyr-7b-beta).
 3. Run the evaluation with the following command (more documentation is available in the [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/big-refactor) repository):
 
