@@ -101,7 +101,7 @@ class MambaEvalWrapper(HFLM):
             "device": str(self._device),
         }
 
-    # this is copied from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/models/huggingface.py#L824-L849
+    # this is copied from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/models/huggingface.py#L896-L921
     def _model_generate(self, context, max_length, stop, **generation_kwargs):
         # temperature = 0.0 if not set
         # if do_sample is false and temp==0.0:
@@ -125,7 +125,7 @@ class MambaEvalWrapper(HFLM):
             max_length=max_length,
             stopping_criteria=stopping_criteria,
             pad_token_id=self.tokenizer.pad_token_id,
-            use_cache=False,
+            use_cache=True,
             **generation_kwargs,
         )
 
@@ -184,7 +184,7 @@ class Mamba2EvalWrapper(HFLM):
             "device": str(self._device),
         }
 
-    # this is copied from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/models/huggingface.py#L824-L849
+    # this is copied from https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/models/huggingface.py#L896-L921
     def _model_generate(self, context, max_length, stop, **generation_kwargs):
         # temperature = 0.0 if not set
         # if do_sample is false and temp==0.0:
@@ -208,7 +208,7 @@ class Mamba2EvalWrapper(HFLM):
             max_length=max_length,
             stopping_criteria=stopping_criteria,
             pad_token_id=self.tokenizer.pad_token_id,
-            use_cache=False,
+            use_cache=True,
             **generation_kwargs,
         )
         
