@@ -23,8 +23,15 @@ class StopSequenceCriteria(StoppingCriteria):
         ]
         self.input_len = input_len
         self.batch_size = batch_size
+        self._device_moved = False
     
     def __call__(self, input_ids, scores, **kwargs):
+        # Move stop sequences to the correct device on first call
+        if not self._device_moved:
+            device = input_ids.device
+            self.stop_sequences_ids = [seq.to(device) for seq in self.stop_sequences_ids]
+            self._device_moved = True
+        
         # Only look at the generated text after self.input_len tokens for each sequence in the batch
         for batch_idx in range(min(self.batch_size, input_ids.shape[0])):
             sequence = input_ids[batch_idx, self.input_len:]
@@ -35,7 +42,6 @@ class StopSequenceCriteria(StoppingCriteria):
                 ):
                     return True
         return False
-
 def stop_sequences_criteria(tokenizer, stop_sequences, input_len, batch_size):
     if not stop_sequences:
         return StoppingCriteriaList()
@@ -131,14 +137,15 @@ class Mamba2EvalWrapper(HFLM):
                  dtype=torch.bfloat16):
         LM.__init__(self)
         from mamba2.hybrid_wrapper import MambaTransformerHybridModelWrapper
-        self._model = MambaTransformerHybridModelWrapper.from_pretrained(pretrained, torch_dtype=dtype).model
+        self._model = MambaTransformerHybridModelWrapper.from_pretrained(pretrained, torch_dtype=dtype).model.to(device)
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained)
         print(self._model)
         self._model = self._model.cuda()
         self.vocab_size = self.tokenizer.vocab_size
         self._batch_size = int(batch_size) if batch_size is not None else 64
         self._max_length = max_length
-        
+        self._model.config.use_cache = False
+
         # Required HFLM attributes
         self.backend = "causal"
         self.add_bos_token = False
