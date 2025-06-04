@@ -35,6 +35,9 @@ class StopSequenceCriteria(StoppingCriteria):
         # Only look at the generated text after self.input_len tokens for each sequence in the batch
         for batch_idx in range(min(self.batch_size, input_ids.shape[0])):
             sequence = input_ids[batch_idx, self.input_len:]
+            # Skip if no tokens have been generated yet
+            if len(sequence) == 0:
+                continue
             for stop_sequence in self.stop_sequences_ids:
                 # Check if the sequence ends with any of the stop sequences
                 if len(sequence) >= len(stop_sequence) and torch.all(
@@ -42,6 +45,7 @@ class StopSequenceCriteria(StoppingCriteria):
                 ):
                     return True
         return False
+
 def stop_sequences_criteria(tokenizer, stop_sequences, input_len, batch_size):
     if not stop_sequences:
         return StoppingCriteriaList()
@@ -55,10 +59,12 @@ class MambaEvalWrapper(HFLM):
                  dtype=torch.bfloat16):
         LM.__init__(self)
         from mamba.hybrid_wrapper import MambaTransformerHybridModelWrapper
-        self._model = MambaTransformerHybridModelWrapper.from_pretrained(pretrained, torch_dtype=dtype).model
+        
+        # Use the wrapper directly
+        self._model = MambaTransformerHybridModelWrapper.from_pretrained(pretrained, torch_dtype=dtype)
+        
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained)
         print(self._model)
-        self._model = self._model.cuda()
         self.vocab_size = self.tokenizer.vocab_size
         self._batch_size = int(batch_size) if batch_size is not None else 64
         self._max_length = max_length
@@ -116,7 +122,12 @@ class MambaEvalWrapper(HFLM):
 
         if do_sample is False and generation_kwargs.get("temperature") == 0.0:
             generation_kwargs.pop("temperature")
-        # build stopping criteria
+        
+        # Remove potentially problematic kwargs that mamba models might not support
+        #for key in ("attention_mask",):
+            #if key in generation_kwargs:
+                #generation_kwargs.pop(key)
+
         stopping_criteria = stop_sequences_criteria(
             self.tokenizer, stop, context.shape[1], context.shape[0]
         )
@@ -125,7 +136,6 @@ class MambaEvalWrapper(HFLM):
             max_length=max_length,
             stopping_criteria=stopping_criteria,
             pad_token_id=self.tokenizer.pad_token_id,
-            use_cache=True,
             **generation_kwargs,
         )
 
@@ -137,14 +147,16 @@ class Mamba2EvalWrapper(HFLM):
                  dtype=torch.bfloat16):
         LM.__init__(self)
         from mamba2.hybrid_wrapper import MambaTransformerHybridModelWrapper
-        self._model = MambaTransformerHybridModelWrapper.from_pretrained(pretrained, torch_dtype=dtype).model.to(device)
+        
+        # Load the wrapper - note it returns a wrapper, not the model directly
+        wrapper = MambaTransformerHybridModelWrapper.from_pretrained(pretrained, torch_dtype=dtype)
+        self._model = wrapper  # Use the wrapper, not wrapper.model
+        
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained)
         print(self._model)
-        self._model = self._model.cuda()
         self.vocab_size = self.tokenizer.vocab_size
         self._batch_size = int(batch_size) if batch_size is not None else 64
         self._max_length = max_length
-        self._model.config.use_cache = False
 
         # Required HFLM attributes
         self.backend = "causal"
@@ -199,16 +211,16 @@ class Mamba2EvalWrapper(HFLM):
 
         if do_sample is False and generation_kwargs.get("temperature") == 0.0:
             generation_kwargs.pop("temperature")
-        # build stopping criteria
-        stopping_criteria = stop_sequences_criteria(
-            self.tokenizer, stop, context.shape[1], context.shape[0]
-        )
+        
+        # Remove potentially problematic kwargs that mamba models might not support
+        for key in ("attention_mask",):
+            if key in generation_kwargs:
+                generation_kwargs.pop(key)
+        
         return self._model.generate(
             input_ids=context,
             max_length=max_length,
-            stopping_criteria=stopping_criteria,
             pad_token_id=self.tokenizer.pad_token_id,
-            use_cache=True,
             **generation_kwargs,
         )
         
