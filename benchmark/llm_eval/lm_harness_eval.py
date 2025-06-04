@@ -10,46 +10,7 @@ from lm_eval.api.model import LM
 from lm_eval.api.registry import register_model
 
 from lm_eval.models.huggingface import HFLM
-from transformers import StoppingCriteria, StoppingCriteriaList
 import torch
-
-# Stop_sequences_criteria seems to be no longer available in lm-eval
-class StopSequenceCriteria(StoppingCriteria):
-    def __init__(self, tokenizer, stop_sequences, input_len, batch_size):
-        self.tokenizer = tokenizer
-        self.stop_sequences_ids = [
-            tokenizer.encode(seq, add_special_tokens=False, return_tensors="pt")[0]
-            for seq in stop_sequences
-        ]
-        self.input_len = input_len
-        self.batch_size = batch_size
-        self._device_moved = False
-    
-    def __call__(self, input_ids, scores, **kwargs):
-        # Move stop sequences to the correct device on first call
-        if not self._device_moved:
-            device = input_ids.device
-            self.stop_sequences_ids = [seq.to(device) for seq in self.stop_sequences_ids]
-            self._device_moved = True
-        
-        # Only look at the generated text after self.input_len tokens for each sequence in the batch
-        for batch_idx in range(min(self.batch_size, input_ids.shape[0])):
-            sequence = input_ids[batch_idx, self.input_len:]
-            # Skip if no tokens have been generated yet
-            if len(sequence) == 0:
-                continue
-            for stop_sequence in self.stop_sequences_ids:
-                # Check if the sequence ends with any of the stop sequences
-                if len(sequence) >= len(stop_sequence) and torch.all(
-                    sequence[-len(stop_sequence):] == stop_sequence
-                ):
-                    return True
-        return False
-
-def stop_sequences_criteria(tokenizer, stop_sequences, input_len, batch_size):
-    if not stop_sequences:
-        return StoppingCriteriaList()
-    return StoppingCriteriaList([StopSequenceCriteria(tokenizer, stop_sequences, input_len, batch_size)])
 
 @register_model("mamba_hybrid")
 class MambaEvalWrapper(HFLM):
@@ -123,18 +84,10 @@ class MambaEvalWrapper(HFLM):
         if do_sample is False and generation_kwargs.get("temperature") == 0.0:
             generation_kwargs.pop("temperature")
         
-        # Remove potentially problematic kwargs that mamba models might not support
-        #for key in ("attention_mask",):
-            #if key in generation_kwargs:
-                #generation_kwargs.pop(key)
-
-        stopping_criteria = stop_sequences_criteria(
-            self.tokenizer, stop, context.shape[1], context.shape[0]
-        )
+        # mamba_ssm GenerationMixin does not support stopping_criteria, so we generate to max_length and truncate
         return self._model.generate(
             input_ids=context,
             max_length=max_length,
-            stopping_criteria=stopping_criteria,
             pad_token_id=self.tokenizer.pad_token_id,
             **generation_kwargs,
         )
@@ -212,11 +165,7 @@ class Mamba2EvalWrapper(HFLM):
         if do_sample is False and generation_kwargs.get("temperature") == 0.0:
             generation_kwargs.pop("temperature")
         
-        # Remove potentially problematic kwargs that mamba models might not support
-        for key in ("attention_mask",):
-            if key in generation_kwargs:
-                generation_kwargs.pop(key)
-        
+        # mamba_ssm GenerationMixin does not support stopping_criteria, so we generate to max_length and truncate
         return self._model.generate(
             input_ids=context,
             max_length=max_length,
